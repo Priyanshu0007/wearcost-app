@@ -4,6 +4,7 @@ import SwiftData
 struct DailyLogSheetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var currencyManager = CurrencyManager.shared
 
     @Query(sort: \WardrobeItem.name) private var items: [WardrobeItem]
 
@@ -38,10 +39,17 @@ struct DailyLogSheetView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 155, maximum: 190), spacing: 12)], spacing: 12) {
+                        LazyVGrid(
+                            columns: [
+                                GridItem(.adaptive(minimum: 100, maximum: 140), spacing: 12)
+                            ],
+                            spacing: 12
+                        ) {
                             ForEach(displayedItems) { item in
-                                let isSelected = selectedItemIDs.contains(item.id)
-                                OutfitItemSelectCard(item: item, isSelected: isSelected) {
+                                OutfitItemSelectCard(
+                                    item: item,
+                                    isSelected: selectedItemIDs.contains(item.id)
+                                ) {
                                     toggleSelection(for: item)
                                 }
                             }
@@ -50,10 +58,10 @@ struct DailyLogSheetView: View {
                     }
                 }
 
-                // Bottom Log Action Bar
+                // Bottom Action Button
                 bottomActionBar
             }
-            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Log Daily Outfit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -62,17 +70,19 @@ struct DailyLogSheetView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    if !items.isEmpty {
-                        Button(selectedItemIDs.count == items.count ? "Deselect All" : "Select All") {
-                            if selectedItemIDs.count == items.count {
-                                selectedItemIDs.removeAll()
-                            } else {
-                                selectedItemIDs = Set(items.map { $0.id })
-                            }
-                        }
-                        .font(.caption.weight(.semibold))
+                    Button("Select All") {
+                        selectedItemIDs = Set(items.map { $0.id })
                     }
+                    .font(.caption)
+                    .disabled(items.isEmpty)
                 }
+            }
+            .alert("Outfit Logged!", isPresented: $showingConfirmation) {
+                Button("Done") {
+                    dismiss()
+                }
+            } message: {
+                Text("Successfully logged \(selectedItemIDs.count) pieces for \(logDate.formatted(date: .abbreviated, time: .omitted)). Their Cost-Per-Wear has been updated!")
             }
         }
     }
@@ -104,14 +114,14 @@ struct DailyLogSheetView: View {
             let savings = max(0.0, currentCPWSum - newCPWSum)
 
             HStack {
-                Text("Total outfit cost: \(String(format: "$%.2f", totalValue))")
+                Text("Total outfit cost: \(currencyManager.format(totalValue))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if savings > 0 {
                     HStack(spacing: 3) {
                         Image(systemName: "arrow.down")
-                        Text(String(format: "CPW - $%.2f", savings))
+                        Text("CPW - \(currencyManager.format(savings))")
                     }
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.green)
@@ -232,15 +242,16 @@ struct DailyLogSheetView: View {
 
         try? modelContext.save()
 
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
+        let notificationFeedback = UINotificationFeedbackGenerator()
+        notificationFeedback.notificationOccurred(.success)
 
-        dismiss()
+        showingConfirmation = true
     }
 }
 
 // MARK: - Outfit Item Selection Card
 struct OutfitItemSelectCard: View {
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     let item: WardrobeItem
     let isSelected: Bool
     let onTap: () -> Void
@@ -287,7 +298,7 @@ struct OutfitItemSelectCard: View {
                         .foregroundStyle(.primary)
 
                     HStack {
-                        Text(String(format: "$%.2f", item.costPerWear))
+                        Text(currencyManager.format(item.costPerWear))
                             .font(.caption.weight(.bold))
                             .foregroundStyle(item.utilityTier.color)
                         Spacer()

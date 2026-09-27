@@ -5,6 +5,8 @@ import SwiftData
 struct AddItemSheetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var currencyManager = CurrencyManager.shared
+    @ObservedObject private var thresholdManager = ThresholdManager.shared
 
     @State private var name: String = ""
     @State private var category: GarmentCategory = .tops
@@ -52,7 +54,7 @@ struct AddItemSheetView: View {
                     HStack {
                         Text("Purchase Price")
                         Spacer()
-                        Text(Locale.current.currencySymbol ?? "$")
+                        Text(currencyManager.symbol)
                             .foregroundStyle(.secondary)
                         TextField("0.00", text: $purchasePriceText)
                             .keyboardType(.decimalPad)
@@ -71,16 +73,16 @@ struct AddItemSheetView: View {
                                 Text("Cost Per Wear at 0 wears")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                                Text(String(format: "$%.2f", price))
+                                Text(currencyManager.format(price))
                                     .font(.title2.weight(.bold))
-                                    .foregroundStyle(price < 2.0 ? .green : (price <= 10.0 ? .orange : .red))
+                                    .foregroundStyle(thresholdManager.tier(for: price).color)
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 4) {
                                 Text("After 10 wears")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text(String(format: "$%.2f", price / 10.0))
+                                Text(currencyManager.format(price / 10.0))
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(Color.accentColor)
                             }
@@ -148,46 +150,39 @@ struct AddItemSheetView: View {
             }
             .frame(height: 220)
 
-            HStack {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images,
-                    photoLibrary: .shared()
-                ) {
-                    Label(rawImageData == nil ? "Choose Photo" : "Change Photo", systemImage: "photo.badge.plus")
-                        .font(.subheadline.weight(.medium))
-                }
-
-                Spacer()
-
-                if rawImageData != nil && segmentedCutoutData != nil {
-                    Button {
-                        showOriginalInstead.toggle()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: showOriginalInstead ? "sparkles" : "photo")
-                            Text(showOriginalInstead ? "Show Cutout" : "Show Original")
-                        }
-                        .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.secondary)
-                }
+            PhotosPicker(
+                selection: $selectedPhotoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Label(
+                    rawImageData == nil ? "Choose Photo" : "Change Photo",
+                    systemImage: "photo.badge.plus"
+                )
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.accentColor.opacity(0.12))
+                .foregroundStyle(Color.accentColor)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .padding(.horizontal, 4)
 
-            if segmentationFailed {
+            if segmentationFailed && rawImageData != nil {
                 HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
+                    Image(systemName: "info.circle")
                         .foregroundStyle(.orange)
-                    Text("Could not isolate subject cleanly. Original photo will be used.")
+                    Text("Background removal unavailable for this image. Original photo will be saved.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+            } else if segmentedCutoutData != nil {
+                Toggle("Use original photo instead of cutout", isOn: $showOriginalInstead)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
             }
         }
-        .padding(.vertical, 6)
     }
 
     private var currentImageDataToDisplay: Data? {

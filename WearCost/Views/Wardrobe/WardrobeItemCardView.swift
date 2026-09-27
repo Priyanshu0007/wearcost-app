@@ -4,6 +4,7 @@ import SwiftData
 struct WardrobeItemCardView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var item: WardrobeItem
+    @ObservedObject private var currencyManager = CurrencyManager.shared
 
     @State private var isIncrementing = false
 
@@ -54,7 +55,7 @@ struct WardrobeItemCardView: View {
                     .foregroundStyle(.primary)
 
                 HStack(alignment: .firstTextBaseline) {
-                    Text(String(format: "$%.2f", item.costPerWear))
+                    Text(currencyManager.format(item.costPerWear))
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(item.utilityTier.color)
                     Text("/ wear")

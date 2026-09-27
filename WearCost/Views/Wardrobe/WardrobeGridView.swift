@@ -14,6 +14,8 @@ enum SortOption: String, CaseIterable, Identifiable {
 struct WardrobeGridView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [WardrobeItem]
+    @ObservedObject private var currencyManager = CurrencyManager.shared
+    @ObservedObject private var thresholdManager = ThresholdManager.shared
 
     @State private var selectedCategory: String? = nil
     @State private var searchText: String = ""
@@ -130,7 +132,7 @@ struct WardrobeGridView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                 let totalSpent = items.reduce(0.0) { $0 + $1.purchasePrice }
-                Text(String(format: "$%.0f", totalSpent))
+                Text(currencyManager.formatCompact(totalSpent))
                     .font(.system(size: 18, weight: .bold, design: .rounded))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -143,9 +145,9 @@ struct WardrobeGridView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                 let avgCPW = items.isEmpty ? 0.0 : (items.reduce(0.0) { $0 + $1.costPerWear } / Double(items.count))
-                Text(String(format: "$%.2f", avgCPW))
+                Text(currencyManager.format(avgCPW))
                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(avgCPW < 2.0 ? .green : (avgCPW <= 10.0 ? .orange : .red))
+                    .foregroundStyle(thresholdManager.tier(for: avgCPW).color)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

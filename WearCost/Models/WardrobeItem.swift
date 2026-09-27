@@ -69,15 +69,19 @@ public enum CPWUtilityTier: String {
         }
     }
 
+    @MainActor
     public var thresholdDescription: String {
-        switch self {
-        case .high:
-            return "< $2.00 / wear"
-        case .moderate:
-            return "$2.00 – $10.00 / wear"
-        case .low:
-            return "> $10.00 / wear"
-        }
+        thresholdDescription(with: CurrencyManager.shared, thresholds: ThresholdManager.shared)
+    }
+
+    @MainActor
+    public func thresholdDescription(with manager: CurrencyManager, thresholds: ThresholdManager) -> String {
+        thresholds.thresholdDescription(for: self, currency: manager)
+    }
+
+    @MainActor
+    public func thresholdDescription(with manager: CurrencyManager) -> String {
+        thresholdDescription(with: manager, thresholds: ThresholdManager.shared)
     }
 }
 
@@ -125,14 +129,9 @@ final class WardrobeItem {
         GarmentCategory(rawValue: category) ?? .tops
     }
 
+    @MainActor
     var utilityTier: CPWUtilityTier {
-        if costPerWear < 2.00 {
-            return .high
-        } else if costPerWear <= 10.00 {
-            return .moderate
-        } else {
-            return .low
-        }
+        ThresholdManager.shared.tier(for: costPerWear)
     }
 
     /// Calculates wears needed to reach a target CPW
@@ -143,8 +142,16 @@ final class WardrobeItem {
     }
 
     /// Next target milestone based on current CPW
+    @MainActor
     var nextMilestone: (targetCPW: Double, wearsNeeded: Int, progress: Double)? {
-        let targets: [Double] = [10.0, 5.0, 2.0, 1.0]
+        let tm = ThresholdManager.shared
+        let targets: [Double] = [
+            tm.moderateThreshold,
+            (tm.moderateThreshold + tm.highThreshold) / 2.0,
+            tm.highThreshold,
+            max(0.5, tm.highThreshold / 2.0)
+        ].sorted(by: >)
+
         for target in targets {
             if costPerWear > target {
                 let needed = wearsNeeded(forTargetCPW: target)

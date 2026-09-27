@@ -4,6 +4,8 @@ import SwiftData
 struct ItemDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var currencyManager = CurrencyManager.shared
+    @ObservedObject private var thresholdManager = ThresholdManager.shared
 
     @Bindable var item: WardrobeItem
     @State private var showingDeleteConfirmation = false
@@ -126,7 +128,7 @@ struct ItemDetailView: View {
                         .foregroundStyle(.secondary)
 
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text(String(format: "$%.2f", item.costPerWear))
+                        Text(currencyManager.format(item.costPerWear))
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundStyle(item.utilityTier.color)
                         Text("/ wear")
@@ -159,7 +161,7 @@ struct ItemDetailView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("Original: \(String(format: "$%.2f", item.purchasePrice))")
+                    Text("Original: \(currencyManager.format(item.purchasePrice))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -195,7 +197,7 @@ struct ItemDetailView: View {
             if let milestone = item.nextMilestone {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text(String(format: "Target: $%.2f / wear", milestone.targetCPW))
+                        Text("Target: \(currencyManager.format(milestone.targetCPW)) / wear")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("\(milestone.wearsNeeded) more wear\(milestone.wearsNeeded == 1 ? "" : "s")")
@@ -206,7 +208,7 @@ struct ItemDetailView: View {
                     ProgressView(value: milestone.progress)
                         .tint(Color.accentColor)
 
-                    Text("Wear this item \(milestone.wearsNeeded) more \(milestone.wearsNeeded == 1 ? "time" : "times") to bring your cost per wear down to $\(String(format: "%.2f", milestone.targetCPW)).")
+                    Text("Wear this item \(milestone.wearsNeeded) more \(milestone.wearsNeeded == 1 ? "time" : "times") to bring your cost per wear down to \(currencyManager.format(milestone.targetCPW)).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -214,7 +216,7 @@ struct ItemDetailView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "star.fill")
                         .foregroundStyle(.yellow)
-                    Text("Top Utility Achieved! Below $1.00 per wear.")
+                    Text("Top Utility Achieved! Below \(currencyManager.format(thresholdManager.highThreshold)) per wear.")
                         .font(.subheadline.weight(.medium))
                 }
                 .padding(.vertical, 4)
@@ -348,6 +350,7 @@ struct ItemDetailView: View {
 // MARK: - Edit Item Sheet
 struct EditItemSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var currencyManager = CurrencyManager.shared
     @Bindable var item: WardrobeItem
 
     @State private var name: String = ""
@@ -371,7 +374,7 @@ struct EditItemSheet: View {
                     HStack {
                         Text("Price")
                         Spacer()
-                        TextField("0.00", value: $purchasePrice, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
+                        TextField("0.00", value: $purchasePrice, format: .currency(code: currencyManager.selectedCurrencyCode))
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }

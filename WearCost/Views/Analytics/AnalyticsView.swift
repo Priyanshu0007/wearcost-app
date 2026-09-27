@@ -4,6 +4,8 @@ import Charts
 
 struct AnalyticsView: View {
     @Query private var items: [WardrobeItem]
+    @ObservedObject private var currencyManager = CurrencyManager.shared
+    @ObservedObject private var thresholdManager = ThresholdManager.shared
     @State private var selectedChartMode: ChartMode = .scatter
 
     enum ChartMode: String, CaseIterable, Identifiable {
@@ -65,9 +67,9 @@ struct AnalyticsView: View {
                         .foregroundStyle(.secondary)
 
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text(String(format: "$%.2f", portfolioCPW))
+                        Text(currencyManager.format(portfolioCPW))
                             .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(portfolioCPW < 2.0 ? .green : (portfolioCPW <= 10.0 ? .orange : .red))
+                            .foregroundStyle(thresholdManager.tier(for: portfolioCPW).color)
                         Text("/ wear")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -87,7 +89,7 @@ struct AnalyticsView: View {
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
 
-                    Text(String(format: "$%.0f", totalInvestment))
+                    Text(currencyManager.formatCompact(totalInvestment))
                         .font(.system(size: 26, weight: .bold, design: .rounded))
 
                     Text("\(items.count) total garments")
@@ -159,13 +161,13 @@ struct AnalyticsView: View {
             .frame(height: 12)
 
             HStack(spacing: 16) {
-                Label("High (<$2)", systemImage: "circle.fill")
+                Label("High (<\(currencyManager.formatCompact(thresholdManager.highThreshold)))", systemImage: "circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
-                Label("Mid ($2-$10)", systemImage: "circle.fill")
+                Label("Mid (\(currencyManager.formatCompact(thresholdManager.highThreshold))-\(currencyManager.formatCompact(thresholdManager.moderateThreshold)))", systemImage: "circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
-                Label("Low (>$10)", systemImage: "circle.fill")
+                Label("Low (>\(currencyManager.formatCompact(thresholdManager.moderateThreshold)))", systemImage: "circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.red)
             }
@@ -207,35 +209,35 @@ struct AnalyticsView: View {
                 Spacer()
             }
 
-            let maxPrice = max(100.0, (items.map(\.purchasePrice).max() ?? 100.0) * 1.1)
+            let maxPrice = max(thresholdManager.moderateThreshold * 10, (items.map(\.purchasePrice).max() ?? 100.0) * 1.1)
             let maxWears = max(20, (items.map(\.totalWears).max() ?? 20) + 5)
 
             let trajectorySteps = stride(from: 1, through: maxWears, by: max(1, maxWears / 20))
-            let goalOneDollar = trajectorySteps.map { wears in
-                (wears: wears, price: Double(wears) * 1.0)
+            let goalHigh = trajectorySteps.map { wears in
+                (wears: wears, price: Double(wears) * thresholdManager.highThreshold)
             }
-            let goalTwoDollar = trajectorySteps.map { wears in
-                (wears: wears, price: Double(wears) * 2.0)
+            let goalModerate = trajectorySteps.map { wears in
+                (wears: wears, price: Double(wears) * thresholdManager.moderateThreshold)
             }
 
             Chart {
-                // Goal Line: $1.00 CPW Target Trajectory
-                ForEach(goalOneDollar, id: \.wears) { pt in
+                // Goal Line: High Utility CPW Target Trajectory
+                ForEach(goalHigh, id: \.wears) { pt in
                     LineMark(
                         x: .value("Wears", pt.wears),
                         y: .value("Price", pt.price),
-                        series: .value("Trajectory", "$1.00 Goal")
+                        series: .value("Trajectory", "\(currencyManager.formatCompact(thresholdManager.highThreshold)) Goal")
                     )
                     .foregroundStyle(.green.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                 }
 
-                // Goal Line: $2.00 CPW Target Trajectory
-                ForEach(goalTwoDollar, id: \.wears) { pt in
+                // Goal Line: Moderate Utility CPW Target Trajectory
+                ForEach(goalModerate, id: \.wears) { pt in
                     LineMark(
                         x: .value("Wears", pt.wears),
                         y: .value("Price", pt.price),
-                        series: .value("Trajectory", "$2.00 Goal")
+                        series: .value("Trajectory", "\(currencyManager.formatCompact(thresholdManager.moderateThreshold)) Goal")
                     )
                     .foregroundStyle(.orange.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
@@ -270,7 +272,7 @@ struct AnalyticsView: View {
                     AxisTick()
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text("$\(Int(doubleValue))")
+                            Text(currencyManager.formatCompact(doubleValue))
                         }
                     }
                 }
@@ -284,7 +286,7 @@ struct AnalyticsView: View {
                     Rectangle()
                         .fill(Color.green)
                         .frame(width: 14, height: 2)
-                    Text("$1.00 / wear line")
+                    Text("\(currencyManager.format(thresholdManager.highThreshold)) / wear line")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -293,7 +295,7 @@ struct AnalyticsView: View {
                     Rectangle()
                         .fill(Color.orange)
                         .frame(width: 14, height: 2)
-                    Text("$2.00 / wear line")
+                    Text("\(currencyManager.format(thresholdManager.moderateThreshold)) / wear line")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -355,7 +357,7 @@ struct AnalyticsView: View {
                     )
                     .foregroundStyle(Color.red.opacity(0.7).gradient)
                     .annotation(position: .trailing) {
-                        Text("\(item.totalWears)w • \(String(format: "$%.2f", item.costPerWear))")
+                        Text("\(item.totalWears)w • \(currencyManager.format(item.costPerWear))")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.secondary)
                     }
@@ -387,11 +389,11 @@ struct AnalyticsView: View {
             Chart(categoryStats, id: \.category.rawValue) { stat in
                 BarMark(
                     x: .value("Category", stat.category.rawValue),
-                    y: .value("Investment ($)", stat.spend)
+                    y: .value("Investment (\(currencyManager.symbol))", stat.spend)
                 )
                 .foregroundStyle(stat.category.color.gradient)
                 .annotation(position: .top) {
-                    Text("$\(Int(stat.spend))")
+                    Text(currencyManager.formatCompact(stat.spend))
                         .font(.system(size: 10, weight: .bold))
                 }
             }
@@ -408,7 +410,7 @@ struct AnalyticsView: View {
                             .font(.subheadline.weight(.medium))
                         Spacer()
                         VStack(alignment: .trailing, spacing: 1) {
-                            Text(String(format: "$%.2f", stat.spend))
+                            Text(currencyManager.format(stat.spend))
                                 .font(.caption.weight(.bold))
                             Text("\(stat.wears) wears")
                                 .font(.caption2)
@@ -439,7 +441,7 @@ struct AnalyticsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Best Value Champion")
                             .font(.subheadline.weight(.bold))
-                        Text("\(best.name) at \(String(format: "$%.2f", best.costPerWear)) / wear (\(best.totalWears) wears)")
+                        Text("\(best.name) at \(currencyManager.format(best.costPerWear)) / wear (\(best.totalWears) wears)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -459,7 +461,7 @@ struct AnalyticsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Highest Opportunity")
                             .font(.subheadline.weight(.bold))
-                        Text("\(opportunity.name) is at \(String(format: "$%.2f", opportunity.costPerWear))/wear. Wear it \(opportunity.wearsNeeded(forTargetCPW: 10.0)) more times to reach moderate utility!")
+                        Text("\(opportunity.name) is at \(currencyManager.format(opportunity.costPerWear))/wear. Wear it \(opportunity.wearsNeeded(forTargetCPW: thresholdManager.moderateThreshold)) more times to reach moderate utility!")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
