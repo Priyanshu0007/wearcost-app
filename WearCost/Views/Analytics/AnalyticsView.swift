@@ -212,20 +212,15 @@ struct AnalyticsView: View {
             let maxPrice = max(thresholdManager.moderateThreshold * 10, (items.map(\.purchasePrice).max() ?? 100.0) * 1.1)
             let maxWears = max(20, (items.map(\.totalWears).max() ?? 20) + 5)
 
-            let trajectorySteps = stride(from: 1, through: maxWears, by: max(1, maxWears / 20))
-            let goalHigh = trajectorySteps.map { wears in
-                (wears: wears, price: Double(wears) * thresholdManager.highThreshold)
-            }
-            let goalModerate = trajectorySteps.map { wears in
-                (wears: wears, price: Double(wears) * thresholdManager.moderateThreshold)
-            }
+            let goalHigh = trajectoryPoints(targetCPW: thresholdManager.highThreshold, maxWears: Double(maxWears), maxPrice: maxPrice)
+            let goalModerate = trajectoryPoints(targetCPW: thresholdManager.moderateThreshold, maxWears: Double(maxWears), maxPrice: maxPrice)
 
             Chart {
                 // Goal Line: High Utility CPW Target Trajectory
-                ForEach(goalHigh, id: \.wears) { pt in
+                ForEach(goalHigh, id: \.id) { pt in
                     LineMark(
-                        x: .value("Wears", pt.wears),
-                        y: .value("Price", pt.price),
+                        x: .value("Total Wears", pt.wears),
+                        y: .value("Purchase Price", pt.price),
                         series: .value("Trajectory", "\(currencyManager.formatCompact(thresholdManager.highThreshold)) Goal")
                     )
                     .foregroundStyle(.green.opacity(0.6))
@@ -233,10 +228,10 @@ struct AnalyticsView: View {
                 }
 
                 // Goal Line: Moderate Utility CPW Target Trajectory
-                ForEach(goalModerate, id: \.wears) { pt in
+                ForEach(goalModerate, id: \.id) { pt in
                     LineMark(
-                        x: .value("Wears", pt.wears),
-                        y: .value("Price", pt.price),
+                        x: .value("Total Wears", pt.wears),
+                        y: .value("Purchase Price", pt.price),
                         series: .value("Trajectory", "\(currencyManager.formatCompact(thresholdManager.moderateThreshold)) Goal")
                     )
                     .foregroundStyle(.orange.opacity(0.6))
@@ -246,7 +241,7 @@ struct AnalyticsView: View {
                 // Wardrobe Item Scatter Points
                 ForEach(items) { item in
                     PointMark(
-                        x: .value("Total Wears", item.totalWears),
+                        x: .value("Total Wears", Double(item.totalWears)),
                         y: .value("Purchase Price", item.purchasePrice)
                     )
                     .foregroundStyle(item.utilityTier.color)
@@ -260,10 +255,16 @@ struct AnalyticsView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(position: .bottom) { _ in
+                AxisMarks(position: .bottom) { value in
                     AxisGridLine()
                     AxisTick()
-                    AxisValueLabel()
+                    AxisValueLabel {
+                        if let intVal = value.as(Int.self) {
+                            Text("\(intVal)")
+                        } else if let dblVal = value.as(Double.self) {
+                            Text("\(Int(dblVal.rounded()))")
+                        }
+                    }
                 }
             }
             .chartYAxis {
@@ -278,8 +279,9 @@ struct AnalyticsView: View {
                 }
             }
             .chartYScale(domain: 0...maxPrice)
-            .chartXScale(domain: 0...maxWears)
+            .chartXScale(domain: 0...Double(maxWears))
             .frame(height: 280)
+            .clipped()
 
             HStack(spacing: 16) {
                 HStack(spacing: 4) {
@@ -301,6 +303,16 @@ struct AnalyticsView: View {
                 }
             }
         }
+    }
+
+    private func trajectoryPoints(targetCPW: Double, maxWears: Double, maxPrice: Double) -> [(id: Int, wears: Double, price: Double)] {
+        guard targetCPW > 0, maxWears > 0, maxPrice > 0 else { return [] }
+        let endWears = min(maxWears, maxPrice / targetCPW)
+        let endPrice = min(maxPrice, endWears * targetCPW)
+        return [
+            (id: 0, wears: 0.0, price: 0.0),
+            (id: 1, wears: endWears, price: endPrice)
+        ]
     }
 
     // MARK: - Bar Charts: Top 5 vs Least 5 Worn
