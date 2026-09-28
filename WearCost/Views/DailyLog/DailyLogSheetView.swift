@@ -9,6 +9,9 @@ struct DailyLogSheetView: View {
     @Query(sort: \WardrobeItem.name) private var items: [WardrobeItem]
 
     @State private var selectedItemIDs: Set<UUID> = []
+    @State private var aiDetectedItemIDs: Set<UUID> = []
+    @State private var outfitSummaryText: String? = nil
+    @State private var showingAIScanSheet = false
     @State private var logDate: Date = Date()
     @State private var selectedCategoryFilter: String? = nil
     @State private var showingConfirmation = false
@@ -18,6 +21,13 @@ struct DailyLogSheetView: View {
             VStack(spacing: 0) {
                 // Category Filter Pills
                 categoryFilterRow
+
+                // AI Outfit Scan Banner
+                if outfitSummaryText != nil {
+                    aiSummaryBanner
+                } else {
+                    aiScanBanner
+                }
 
                 // Items Selection List / Grid
                 if items.isEmpty {
@@ -42,7 +52,8 @@ struct DailyLogSheetView: View {
                             ForEach(displayedItems) { item in
                                 OutfitItemSelectCard(
                                     item: item,
-                                    isSelected: selectedItemIDs.contains(item.id)
+                                    isSelected: selectedItemIDs.contains(item.id),
+                                    isAiDetected: aiDetectedItemIDs.contains(item.id)
                                 ) {
                                     toggleSelection(for: item)
                                 }
@@ -68,6 +79,16 @@ struct DailyLogSheetView: View {
                         .labelsHidden()
                 }
             }
+            .sheet(isPresented: $showingAIScanSheet) {
+                AIOutfitScanSheet(
+                    wardrobeItems: items,
+                    selectedItemIDs: $selectedItemIDs,
+                    aiDetectedItemIDs: $aiDetectedItemIDs,
+                    outfitSummaryText: $outfitSummaryText
+                ) {
+                    commitOutfitLog()
+                }
+            }
             .alert("Outfit Logged!", isPresented: $showingConfirmation) {
                 Button("Done") {
                     dismiss()
@@ -76,6 +97,138 @@ struct DailyLogSheetView: View {
                 Text("Successfully logged \(selectedItemIDs.count) pieces for \(logDate.formatted(date: .abbreviated, time: .omitted)). Their Cost-Per-Wear has been updated!")
             }
         }
+    }
+
+    // MARK: - AI Scan Banners
+
+    private var aiScanBanner: some View {
+        Button {
+            showingAIScanSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.purple, .blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("Scan Outfit with AI")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        Text("Apple AI")
+                            .font(.system(size: 9, weight: .heavy))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                    }
+
+                    Text("Snap today's photo to auto-detect and select worn pieces")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.purple.opacity(0.35), .blue.opacity(0.2)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+    }
+
+    private var aiSummaryBanner: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.15))
+                    .frame(width: 38, height: 38)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.purple)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(outfitSummaryText ?? "AI Identified Outfit")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text("Matched")
+                        .font(.system(size: 9, weight: .heavy))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.15))
+                        .foregroundStyle(.green)
+                        .clipShape(Capsule())
+                }
+
+                Text("\(aiDetectedItemIDs.count) pieces auto-selected by Apple AI")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                showingAIScanSheet = true
+            } label: {
+                Text("Rescan")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.purple.opacity(0.12))
+                    .foregroundStyle(.purple)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
     }
 
     // MARK: - Category Filter Row

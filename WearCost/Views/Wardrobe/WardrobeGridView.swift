@@ -63,6 +63,7 @@ struct WardrobeGridView: View {
             .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
             .searchable(text: $searchText, prompt: "Search wardrobe items")
             .navigationTitle("Wardrobe")
+            .toolbarVisibility(.visible, for: .tabBar)
             .navigationDestination(for: WardrobeItem.self) { item in
                 ItemDetailView(item: item)
                     .navigationTransition(.zoom(sourceID: item.id, in: heroNamespace))

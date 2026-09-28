@@ -11,6 +11,7 @@ struct ItemDetailView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingEditSheet = false
     @State private var isAnimatingWearAction = false
+    @State private var tabVisibility: Visibility = .hidden
 
     var body: some View {
         ScrollView {
@@ -36,6 +37,10 @@ struct ItemDetailView: View {
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle(item.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(tabVisibility, for: .tabBar)
+        .onDisappear {
+            tabVisibility = .visible
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
