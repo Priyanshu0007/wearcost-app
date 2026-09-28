@@ -19,6 +19,7 @@ struct AIOutfitScanSheet: View {
     @State private var analysisResult: IdentifiedOutfitResult? = nil
     @State private var detectedGarments: [IdentifiedGarment] = []
     @State private var errorMessage: String? = nil
+    @State private var garmentToMatch: IdentifiedGarment? = nil
 
     init(
         wardrobeItems: [WardrobeItem],
@@ -95,6 +96,30 @@ struct AIOutfitScanSheet: View {
             .safeAreaInset(edge: .bottom) {
                 if analysisResult != nil {
                     bottomConfirmationBar
+                }
+            }
+            .sheet(item: $garmentToMatch) { garment in
+                let otherMatches: [UUID: String] = {
+                    var map: [UUID: String] = [:]
+                    for g in detectedGarments where g.id != garment.id {
+                        if let matchedID = g.matchedWardrobeItemID {
+                            map[matchedID] = g.name
+                        }
+                    }
+                    return map
+                }()
+
+                let currentMatchedID = detectedGarments.first(where: { $0.id == garment.id })?.matchedWardrobeItemID
+
+                WardrobeMatchPickerSheet(
+                    garment: garment,
+                    wardrobeItems: wardrobeItems,
+                    currentlyMatchedItemID: currentMatchedID,
+                    otherMatchedItems: otherMatches
+                ) { selectedID in
+                    if let idx = detectedGarments.firstIndex(where: { $0.id == garment.id }) {
+                        detectedGarments[idx].matchedWardrobeItemID = selectedID
+                    }
                 }
             }
             .task {
@@ -331,72 +356,88 @@ struct AIOutfitScanSheet: View {
 
             // Prominent Matched Wardrobe Item Callout Box
             if let matched = matchedItem {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "link.circle.fill")
+                Button {
+                    garmentToMatch = garment.wrappedValue
+                } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.subheadline)
+                            Text("MATCHED WARDROBE ITEM")
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.caption2)
+                                Text("Change")
+                                    .font(.caption.weight(.semibold))
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.15), in: Capsule())
                             .foregroundStyle(.green)
-                            .font(.subheadline)
-                        Text("MATCHED WARDROBE ITEM")
-                            .font(.system(size: 10, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                        }
 
-                        Spacer()
-
-                        matchMenu(for: garment, matchedItem: matched)
-                    }
-
-                    HStack(spacing: 12) {
-                        // Wardrobe item thumbnail / icon
-                        if let data = matched.imageData, let img = UIImage(data: data) {
-                            Image(uiImage: img)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 46, height: 46)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay(
+                        HStack(spacing: 12) {
+                            // Wardrobe item thumbnail / icon
+                            if let data = matched.imageData, let img = UIImage(data: data) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 48, height: 48)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                                    )
+                            } else {
+                                ZStack {
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                                )
-                        } else {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(matched.garmentCategory.color.opacity(0.15))
-                                    .frame(width: 46, height: 46)
-                                Image(systemName: matched.garmentCategory.iconName)
-                                    .font(.system(size: 22))
-                                    .foregroundStyle(matched.garmentCategory.color)
+                                        .fill(matched.garmentCategory.color.opacity(0.15))
+                                        .frame(width: 48, height: 48)
+                                    Image(systemName: matched.garmentCategory.iconName)
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(matched.garmentCategory.color)
+                                }
                             }
-                        }
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(matched.name)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(matched.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
 
-                            HStack(spacing: 6) {
-                                Text("\(currencyManager.format(matched.costPerWear))/wear")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(matched.utilityTier.color)
+                                HStack(spacing: 6) {
+                                    Text("\(currencyManager.format(matched.costPerWear))/wear")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(matched.utilityTier.color)
 
-                                Text("•")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    Text("•")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
 
-                                Text("\(matched.totalWears) total wears")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    Text("\(matched.totalWears) total wears")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
-                        }
 
-                        Spacer()
+                            Spacer()
+                        }
                     }
+                    .padding(12)
+                    .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.green.opacity(0.25), lineWidth: 1)
+                    )
                 }
-                .padding(12)
-                .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.green.opacity(0.25), lineWidth: 1)
-                )
+                .buttonStyle(.plain)
             } else {
                 // New Item Callout Box
                 VStack(alignment: .leading, spacing: 8) {
@@ -411,7 +452,23 @@ struct AIOutfitScanSheet: View {
                         Spacer()
 
                         if !wardrobeItems.isEmpty {
-                            matchMenu(for: garment, matchedItem: nil)
+                            Button {
+                                garmentToMatch = garment.wrappedValue
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "link")
+                                        .font(.caption2)
+                                    Text("Match with...")
+                                        .font(.caption.weight(.semibold))
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.bold))
+                                }
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.12), in: Capsule())
+                                .foregroundStyle(Color.accentColor)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
 
@@ -438,46 +495,6 @@ struct AIOutfitScanSheet: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(piece.isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5)
         )
-    }
-
-    // MARK: - Match Menu (Change or Assign Match)
-
-    private func matchMenu(for garment: Binding<IdentifiedGarment>, matchedItem: WardrobeItem?) -> some View {
-        Menu {
-            Section("Select Wardrobe Item") {
-                ForEach(wardrobeItems) { item in
-                    Button {
-                        garment.matchedWardrobeItemID.wrappedValue = item.id
-                    } label: {
-                        HStack {
-                            Text(item.name)
-                            if item.id == garment.matchedWardrobeItemID.wrappedValue {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
-
-            if matchedItem != nil {
-                Button(role: .destructive) {
-                    garment.matchedWardrobeItemID.wrappedValue = nil
-                } label: {
-                    Label("Unlink (Create as New Item)", systemImage: "xmark.circle")
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(matchedItem == nil ? "Match with..." : "Change Match")
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.accentColor.opacity(0.12), in: Capsule())
-            .foregroundStyle(Color.accentColor)
-        }
     }
 
     // MARK: - New Items Notice
