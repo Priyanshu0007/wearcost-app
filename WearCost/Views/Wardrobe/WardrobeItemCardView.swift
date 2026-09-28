@@ -97,7 +97,7 @@ struct WardrobeItemCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .scaleEffect(isIncrementing ? 0.95 : 1.0)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
         }
         .padding(10)
         .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 20))

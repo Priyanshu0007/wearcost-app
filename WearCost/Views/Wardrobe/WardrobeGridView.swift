@@ -17,6 +17,8 @@ struct WardrobeGridView: View {
     @ObservedObject private var currencyManager = CurrencyManager.shared
     @ObservedObject private var thresholdManager = ThresholdManager.shared
 
+    @Namespace private var heroNamespace
+
     @State private var selectedCategory: String? = nil
     @State private var searchText: String = ""
     @State private var sortOption: SortOption = .cpwAscending
@@ -43,10 +45,14 @@ struct WardrobeGridView: View {
                     } else {
                         LazyVGrid(columns: columns, spacing: 14) {
                             ForEach(filteredItems) { item in
-                                NavigationLink(destination: ItemDetailView(item: item)) {
+                                NavigationLink(value: item) {
                                     WardrobeItemCardView(item: item)
                                 }
                                 .buttonStyle(.plain)
+                                .matchedTransitionSource(id: item.id, in: heroNamespace) { configuration in
+                                    configuration
+                                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
@@ -57,6 +63,10 @@ struct WardrobeGridView: View {
             .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
             .searchable(text: $searchText, prompt: "Search wardrobe items")
             .navigationTitle("Wardrobe")
+            .navigationDestination(for: WardrobeItem.self) { item in
+                ItemDetailView(item: item)
+                    .navigationTransition(.zoom(sourceID: item.id, in: heroNamespace))
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
