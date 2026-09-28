@@ -54,15 +54,19 @@ struct WardrobeItemCardView: View {
                     .lineLimit(1)
                     .foregroundStyle(.primary)
 
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(currencyManager.format(item.costPerWear))
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(item.utilityTier.color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
                     Text("/ wear")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
 
-                    Spacer()
+                    Spacer(minLength: 4)
 
                     Text("\(item.totalWears)w")
                         .font(.caption2.weight(.medium))
@@ -70,7 +74,9 @@ struct WardrobeItemCardView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
+                        .fixedSize()
                 }
+                .lineLimit(1)
             }
             .padding(.horizontal, 4)
 

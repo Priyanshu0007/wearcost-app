@@ -16,12 +16,6 @@ struct DailyLogSheetView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Top Outfit Summary Banner
-                if !selectedItemIDs.isEmpty {
-                    selectedOutfitSummaryBar
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
                 // Category Filter Pills
                 categoryFilterRow
 
@@ -70,11 +64,8 @@ struct DailyLogSheetView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Select All") {
-                        selectedItemIDs = Set(items.map { $0.id })
-                    }
-                    .font(.caption)
-                    .disabled(items.isEmpty)
+                    DatePicker("", selection: $logDate, in: ...Date(), displayedComponents: .date)
+                        .labelsHidden()
                 }
             }
             .alert("Outfit Logged!", isPresented: $showingConfirmation) {
@@ -85,53 +76,6 @@ struct DailyLogSheetView: View {
                 Text("Successfully logged \(selectedItemIDs.count) pieces for \(logDate.formatted(date: .abbreviated, time: .omitted)). Their Cost-Per-Wear has been updated!")
             }
         }
-    }
-
-    // MARK: - Selected Outfit Summary
-    private var selectedOutfitSummaryBar: some View {
-        VStack(spacing: 8) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.tint)
-                    Text("\(selectedItemIDs.count) Pieces Selected")
-                        .font(.subheadline.weight(.bold))
-                }
-
-                Spacer()
-
-                DatePicker("", selection: $logDate, in: ...Date(), displayedComponents: .date)
-                    .labelsHidden()
-            }
-
-            // Calculation preview
-            let selectedItems = items.filter { selectedItemIDs.contains($0.id) }
-            let totalValue = selectedItems.reduce(0.0) { $0 + $1.purchasePrice }
-            let currentCPWSum = selectedItems.reduce(0.0) { $0 + $1.costPerWear }
-            let newCPWSum = selectedItems.reduce(0.0) { sum, item in
-                sum + (item.purchasePrice / Double(item.totalWears + 1))
-            }
-            let savings = max(0.0, currentCPWSum - newCPWSum)
-
-            HStack {
-                Text("Total outfit cost: \(currencyManager.format(totalValue))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if savings > 0 {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.down")
-                        Text("CPW - \(currencyManager.format(savings))")
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.green)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .overlay(Divider(), alignment: .bottom)
     }
 
     // MARK: - Category Filter Row
@@ -200,18 +144,26 @@ struct DailyLogSheetView: View {
         .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 
+    // MARK: - Empty Wardrobe Prompt
     private var emptyWardrobePrompt: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "hanger")
+        VStack(spacing: 16) {
+            Image(systemName: "tshirt")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No garments in your wardrobe yet")
-                .font(.headline)
-            Text("Add garments first to log your daily outfits.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                Text("No Clothes Added Yet")
+                    .font(.headline)
+
+                Text("Add items to your wardrobe first to start logging your daily outfits and tracking Cost-Per-Wear.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 24)
     }
 
     private var displayedItems: [WardrobeItem] {
@@ -254,6 +206,7 @@ struct OutfitItemSelectCard: View {
     @ObservedObject private var currencyManager = CurrencyManager.shared
     let item: WardrobeItem
     let isSelected: Bool
+    var isAiDetected: Bool = false
     let onTap: () -> Void
 
     var body: some View {
@@ -277,6 +230,22 @@ struct OutfitItemSelectCard: View {
                             .frame(maxWidth: .infinity, maxHeight: 120)
                     }
 
+                    // Top-Left AI Matched Badge
+                    if isAiDetected {
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                            Text("AI Matched")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .foregroundStyle(.purple)
+                        .padding(6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+
+                    // Selection Checkmark Circle
                     ZStack {
                         Circle()
                             .fill(isSelected ? Color.accentColor : Color.black.opacity(0.3))
@@ -314,9 +283,9 @@ struct OutfitItemSelectCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2.5)
+                    .stroke(isSelected ? (isAiDetected ? Color.purple : Color.accentColor) : Color.clear, lineWidth: 2.5)
             )
-            .shadow(color: isSelected ? Color.accentColor.opacity(0.2) : .black.opacity(0.04), radius: 6, x: 0, y: 2)
+            .shadow(color: isSelected ? (isAiDetected ? Color.purple.opacity(0.25) : Color.accentColor.opacity(0.2)) : .black.opacity(0.04), radius: 6, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }
