@@ -162,6 +162,7 @@ struct SettingsView: View {
                     Text("100% offline and on-device. No cloud sync, third-party trackers, or network calls.")
                 }
             }
+            .safeAreaPadding(.top)
             .navigationTitle("Settings")
             .sheet(isPresented: $showingEditThresholds) {
                 EditThresholdsSheet()
