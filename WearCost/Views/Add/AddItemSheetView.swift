@@ -13,7 +13,7 @@ struct AddItemSheetView: View {
     @State private var purchasePriceText: String = ""
     @State private var purchaseDate: Date = Date()
 
-    // PhotosPicker state
+    // PhotosPicker & Segmentation state
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var rawImageData: Data? = nil
     @State private var segmentedCutoutData: Data? = nil
@@ -21,6 +21,12 @@ struct AddItemSheetView: View {
     @State private var segmentationStatusMessage: String = ""
     @State private var showOriginalInstead = false
     @State private var segmentationFailed = false
+
+    // On-Device AI Scan & Suggestion state
+    @State private var isAIScanning = false
+    @State private var aiSuggestion: DetectedSingleGarmentResult? = nil
+    @State private var aiSuggestionDismissed = false
+    @State private var aiSuggestionApplied = false
 
     private let segmenter = ImageSegmenter()
 
@@ -36,8 +42,43 @@ struct AddItemSheetView: View {
                     Text("Apple Neural Engine isolates the garment cutout instantly and automatically removes backgrounds on-device.")
                 }
 
-                // Section 2: Garment metadata
-                Section("Garment Details") {
+                // Section 2: On-Device AI Scan / Suggestion Card (Appears on User Approval)
+                if isAIScanning {
+                    Section {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.purple)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Scanning with On-Device AI...")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Identifying garment type and category")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } else if let suggestion = aiSuggestion, !aiSuggestionDismissed {
+                    Section {
+                        aiSuggestionApprovalView(suggestion: suggestion)
+                    } header: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(.purple)
+                            Text("Apple AI Recognition")
+                        }
+                    } footer: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cpu")
+                                .font(.caption2)
+                            Text(suggestion.source)
+                                .font(.caption2)
+                        }
+                    }
+                }
+
+                // Section 3: Garment metadata
+                Section {
                     TextField("Name (e.g., Raw Denim Jacket)", text: $name)
                         .autocorrectionDisabled()
 
@@ -47,9 +88,22 @@ struct AddItemSheetView: View {
                                 .tag(cat)
                         }
                     }
+                } header: {
+                    HStack {
+                        Text("Garment Details")
+                        if aiSuggestionApplied {
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                Text("Populated via AI")
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.purple)
+                        }
+                    }
                 }
 
-                // Section 3: Purchase information
+                // Section 4: Purchase information
                 Section("Investment Details") {
                     HStack {
                         Text("Purchase Price")
@@ -65,7 +119,7 @@ struct AddItemSheetView: View {
                     DatePicker("Date Purchased", selection: $purchaseDate, in: ...Date(), displayedComponents: .date)
                 }
 
-                // Section 4: Initial CPW preview
+                // Section 5: Initial CPW preview
                 if let price = parsedPrice, price > 0 {
                     Section("Starting Cost Per Wear") {
                         HStack {
@@ -99,7 +153,7 @@ struct AddItemSheetView: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add to Wardrobe") {
+                    Button("Add") {
                         saveItem()
                     }
                     .disabled(!canSave)
@@ -150,21 +204,43 @@ struct AddItemSheetView: View {
             }
             .frame(height: 220)
 
-            PhotosPicker(
-                selection: $selectedPhotoItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                Label(
-                    rawImageData == nil ? "Choose Photo" : "Change Photo",
-                    systemImage: "photo.badge.plus"
-                )
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.accentColor.opacity(0.12))
-                .foregroundStyle(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            HStack(spacing: 10) {
+                PhotosPicker(
+                    selection: $selectedPhotoItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label(
+                        rawImageData == nil ? "Choose Photo" : "Change Photo",
+                        systemImage: "photo.badge.plus"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                if let data = rawImageData, let img = UIImage(data: data), !isAIScanning {
+                    Button {
+                        Task {
+                            await analyzeGarmentWithAI(image: img)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                            Text("Scan AI")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.purple.opacity(0.12))
+                        .foregroundStyle(.purple)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             if segmentationFailed && rawImageData != nil {
@@ -185,6 +261,110 @@ struct AddItemSheetView: View {
         }
     }
 
+    // MARK: - AI Suggestion & Approval View
+    private func aiSuggestionApprovalView(suggestion: DetectedSingleGarmentResult) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(suggestion.category.color.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: suggestion.category.iconName)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(suggestion.category.color)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(suggestion.name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 6) {
+                        Text(suggestion.category.rawValue)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(suggestion.category.color)
+
+                        if !suggestion.color.isEmpty {
+                            Text("•")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(suggestion.color)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if aiSuggestionApplied {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Applied")
+                    }
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.12), in: Capsule())
+                }
+            }
+
+            if !aiSuggestionApplied {
+                HStack(spacing: 10) {
+                    Button {
+                        applyAISuggestion(suggestion)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                            Text("Use Suggestion")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            LinearGradient(
+                                colors: [.purple, .blue],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation {
+                            aiSuggestionDismissed = true
+                        }
+                    } label: {
+                        Text("Dismiss")
+                            .font(.subheadline)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(Color(uiColor: .tertiarySystemFill))
+                            .foregroundStyle(.secondary)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func applyAISuggestion(_ suggestion: DetectedSingleGarmentResult) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            name = suggestion.name
+            category = suggestion.category
+            aiSuggestionApplied = true
+        }
+
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+
     private var currentImageDataToDisplay: Data? {
         if showOriginalInstead {
             return rawImageData
@@ -202,7 +382,7 @@ struct AddItemSheetView: View {
         !isSegmenting
     }
 
-    // MARK: - Vision Processing Pipeline
+    // MARK: - Vision & AI Processing Pipeline
     private func processSelectedPhoto(_ item: PhotosPickerItem?) async {
         guard let item = item else { return }
 
@@ -210,6 +390,9 @@ struct AddItemSheetView: View {
             isSegmenting = true
             segmentationStatusMessage = "Reading image data..."
             segmentationFailed = false
+            aiSuggestion = nil
+            aiSuggestionDismissed = false
+            aiSuggestionApplied = false
         }
 
         do {
@@ -221,28 +404,69 @@ struct AddItemSheetView: View {
                 return
             }
 
+            guard let uiImage = UIImage(data: data) else {
+                await MainActor.run {
+                    isSegmenting = false
+                    segmentationStatusMessage = ""
+                }
+                return
+            }
+
             await MainActor.run {
                 self.rawImageData = data
                 self.segmentationStatusMessage = "Neural Engine isolating garment..."
+                self.isAIScanning = true
             }
 
-            let result = await segmenter.extractForegroundWithFallback(from: data)
+            // Run foreground segmentation and AI garment analysis concurrently
+            async let segmentationTask = segmenter.extractForegroundWithFallback(from: data)
+            async let aiScanTask = OutfitAnalysisService.shared.analyzeSingleGarment(image: uiImage)
+
+            let segResult = await segmentationTask
 
             await MainActor.run {
-                self.segmentedCutoutData = result.data
-                self.segmentationFailed = !result.wasSegmented
+                self.segmentedCutoutData = segResult.data
+                self.segmentationFailed = !segResult.wasSegmented
                 self.isSegmenting = false
                 self.segmentationStatusMessage = ""
+            }
+
+            let detectedAI = await aiScanTask
+
+            await MainActor.run {
+                self.aiSuggestion = detectedAI
+                self.isAIScanning = false
+                self.aiSuggestionApplied = false
 
                 let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(result.wasSegmented ? .success : .warning)
+                generator.notificationOccurred(.success)
             }
         } catch {
             await MainActor.run {
                 self.isSegmenting = false
+                self.isAIScanning = false
                 self.segmentationFailed = true
                 self.segmentationStatusMessage = ""
             }
+        }
+    }
+
+    private func analyzeGarmentWithAI(image: UIImage) async {
+        await MainActor.run {
+            isAIScanning = true
+            aiSuggestionDismissed = false
+        }
+
+        let result = await OutfitAnalysisService.shared.analyzeSingleGarment(image: image)
+
+        await MainActor.run {
+            self.aiSuggestion = result
+            self.isAIScanning = false
+            self.aiSuggestionDismissed = false
+            self.aiSuggestionApplied = false
+
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
         }
     }
 

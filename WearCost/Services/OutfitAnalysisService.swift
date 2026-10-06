@@ -30,6 +30,32 @@ struct DetectedGarment {
     var matchedCandidateId: String
 }
 
+@Generable
+struct DetectedSingleGarmentAnalysis {
+    @Guide(description: "A concise, stylish name for the garment, e.g. 'Raw Denim Jacket', 'Oversized Linen Shirt', 'Navy Chinos', 'Leather Chelsea Boots'")
+    var name: String
+
+    @Guide(description: "Garment category: Tops, Bottoms, Footwear, Outerwear, or Accessories")
+    var category: String
+
+    @Guide(description: "Dominant color of the garment, e.g. 'Blue', 'Black', 'White', 'Beige'")
+    var color: String
+}
+
+public struct DetectedSingleGarmentResult: Equatable {
+    public var name: String
+    public var category: GarmentCategory
+    public var color: String
+    public var source: String
+
+    public init(name: String, category: GarmentCategory, color: String = "", source: String = "Apple Foundation Models") {
+        self.name = name
+        self.category = category
+        self.color = color
+        self.source = source
+    }
+}
+
 // MARK: - App-facing Identified Outfit Models
 
 struct IdentifiedGarment: Identifiable, Hashable {
@@ -83,6 +109,251 @@ final class OutfitAnalysisService {
     static let shared = OutfitAnalysisService()
 
     private init() {}
+
+    /// Analyzes a single garment photo using Apple AI FoundationModels (LanguageModelSession)
+    /// or on-device Vision classification fallback to detect item name and category.
+    func analyzeSingleGarment(image: UIImage) async -> DetectedSingleGarmentResult {
+        // 1. Try on-device FoundationModels if available
+        if SystemLanguageModel.default.isAvailable {
+            do {
+                if let result = try await runSingleGarmentFoundationModelInference(image: image) {
+                    return result
+                }
+            } catch {
+                print("FoundationModels single garment inference error: \(error). Falling back to Vision.")
+            }
+        }
+
+        // 2. Intelligent Vision fallback
+        return await runSingleGarmentVisionFallback(image: image)
+    }
+
+    private func runSingleGarmentFoundationModelInference(
+        image: UIImage
+    ) async throws -> DetectedSingleGarmentResult? {
+        guard let cgImage = image.cgImage else { return nil }
+
+        let orientation: CGImagePropertyOrientation
+        switch image.imageOrientation {
+        case .up: orientation = .up
+        case .down: orientation = .down
+        case .left: orientation = .left
+        case .right: orientation = .right
+        case .upMirrored: orientation = .upMirrored
+        case .downMirrored: orientation = .downMirrored
+        case .leftMirrored: orientation = .leftMirrored
+        case .rightMirrored: orientation = .rightMirrored
+        @unknown default: orientation = .up
+        }
+
+        let instructions = """
+        You are an expert personal stylist and wardrobe recognition AI.
+        Examine this garment photo closely.
+        Provide a concise, stylish name for this individual garment (e.g., 'Raw Denim Jacket', 'Oversized Linen Shirt', 'Navy Tailored Trousers', 'White Canvas Sneakers') and identify its category (Tops, Bottoms, Footwear, Outerwear, Accessories) and dominant color.
+        """
+
+        let session = LanguageModelSession(instructions: instructions)
+
+        let prompt = Prompt {
+            """
+            Analyze this single garment image and determine its name, category, and color.
+            """
+            Attachment(cgImage, orientation: orientation)
+        }
+
+        let response = try await session.respond(
+            to: prompt,
+            generating: DetectedSingleGarmentAnalysis.self
+        )
+
+        let analysis = response.content
+        let cat = GarmentCategory(rawValue: analysis.category) ?? parseCategory(from: analysis.category)
+        let trimmedName = analysis.name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return DetectedSingleGarmentResult(
+            name: trimmedName.isEmpty ? "New Garment" : trimmedName,
+            category: cat,
+            color: analysis.color,
+            source: "Apple Foundation Models"
+        )
+    }
+
+    private func runSingleGarmentVisionFallback(image: UIImage) async -> DetectedSingleGarmentResult {
+        let visionLabels = await classifyImageWithVision(image: image)
+        let dominantColor = detectDominantColor(in: image)
+
+        // Rule-based classification mapping based on top Vision labels
+        var detectedCategory: GarmentCategory = .tops
+        var detectedTitle = ""
+
+        for label in visionLabels {
+            let l = label.lowercased()
+            // Outerwear check
+            if l.contains("jacket") || l.contains("coat") || l.contains("blazer") || l.contains("parka") || l.contains("windbreaker") || l.contains("vest") || l.contains("cardigan") {
+                detectedCategory = .outerwear
+                if l.contains("denim jacket") || (l.contains("denim") && l.contains("jacket")) {
+                    detectedTitle = "Denim Jacket"
+                } else if l.contains("leather jacket") {
+                    detectedTitle = "Leather Jacket"
+                } else if l.contains("blazer") {
+                    detectedTitle = "Tailored Blazer"
+                } else if l.contains("cardigan") {
+                    detectedTitle = "Knit Cardigan"
+                } else if l.contains("coat") {
+                    detectedTitle = "Overcoat"
+                } else {
+                    detectedTitle = "Jacket"
+                }
+                break
+            }
+
+            // Footwear check
+            if l.contains("sneaker") || l.contains("shoe") || l.contains("boot") || l.contains("sandal") || l.contains("loafer") || l.contains("footwear") {
+                detectedCategory = .footwear
+                if l.contains("sneaker") || l.contains("running shoe") {
+                    detectedTitle = "Sneakers"
+                } else if l.contains("boot") {
+                    detectedTitle = "Boots"
+                } else if l.contains("loafer") {
+                    detectedTitle = "Leather Loafers"
+                } else if l.contains("sandal") {
+                    detectedTitle = "Sandals"
+                } else {
+                    detectedTitle = "Shoes"
+                }
+                break
+            }
+
+            // Bottoms check
+            if l.contains("jean") || l.contains("denim") || l.contains("pant") || l.contains("trouser") || l.contains("chino") || l.contains("short") || l.contains("skirt") {
+                detectedCategory = .bottoms
+                if l.contains("jean") || l.contains("denim") {
+                    detectedTitle = "Denim Jeans"
+                } else if l.contains("short") {
+                    detectedTitle = "Casual Shorts"
+                } else if l.contains("skirt") {
+                    detectedTitle = "Skirt"
+                } else if l.contains("chino") {
+                    detectedTitle = "Chino Trousers"
+                } else {
+                    detectedTitle = "Trousers"
+                }
+                break
+            }
+
+            // Tops check
+            if l.contains("shirt") || l.contains("t-shirt") || l.contains("tee") || l.contains("sweater") || l.contains("hoodie") || l.contains("sweatshirt") || l.contains("jersey") || l.contains("polo") || l.contains("top") || l.contains("blouse") {
+                detectedCategory = .tops
+                if l.contains("sweater") {
+                    detectedTitle = "Knit Sweater"
+                } else if l.contains("hoodie") || l.contains("sweatshirt") {
+                    detectedTitle = "Hoodie"
+                } else if l.contains("polo") {
+                    detectedTitle = "Polo Shirt"
+                } else if l.contains("blouse") {
+                    detectedTitle = "Blouse"
+                } else if l.contains("t-shirt") || l.contains("tee") {
+                    detectedTitle = "T-Shirt"
+                } else {
+                    detectedTitle = "Button Shirt"
+                }
+                break
+            }
+
+            // Accessories check
+            if l.contains("hat") || l.contains("cap") || l.contains("beanie") || l.contains("scarf") || l.contains("sunglasses") || l.contains("glasses") || l.contains("bag") || l.contains("backpack") || l.contains("watch") || l.contains("belt") || l.contains("tie") {
+                detectedCategory = .accessories
+                if l.contains("cap") || l.contains("hat") || l.contains("beanie") {
+                    detectedTitle = "Hat / Cap"
+                } else if l.contains("sunglasses") || l.contains("glasses") {
+                    detectedTitle = "Sunglasses"
+                } else if l.contains("bag") || l.contains("backpack") {
+                    detectedTitle = "Bag"
+                } else if l.contains("scarf") {
+                    detectedTitle = "Scarf"
+                } else if l.contains("watch") {
+                    detectedTitle = "Watch"
+                } else {
+                    detectedTitle = "Accessory"
+                }
+                break
+            }
+        }
+
+        if detectedTitle.isEmpty {
+            detectedTitle = "Garment"
+        }
+
+        let fullName = dominantColor.isEmpty ? detectedTitle : "\(dominantColor) \(detectedTitle)"
+
+        return DetectedSingleGarmentResult(
+            name: fullName,
+            category: detectedCategory,
+            color: dominantColor,
+            source: "On-Device AI Vision"
+        )
+    }
+
+    private func detectDominantColor(in image: UIImage) -> String {
+        guard let cgImage = image.cgImage else { return "" }
+        let width = 20
+        let height = 20
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var rawData = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &rawData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return "" }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var totalR: Double = 0
+        var totalG: Double = 0
+        var totalB: Double = 0
+        var validPixelCount: Double = 0
+
+        for i in stride(from: 0, to: rawData.count, by: 4) {
+            let a = Double(rawData[i + 3])
+            if a > 80 { // Ignore transparent pixels
+                totalR += Double(rawData[i])
+                totalG += Double(rawData[i + 1])
+                totalB += Double(rawData[i + 2])
+                validPixelCount += 1
+            }
+        }
+
+        guard validPixelCount > 0 else { return "" }
+
+        let r = totalR / validPixelCount
+        let g = totalG / validPixelCount
+        let b = totalB / validPixelCount
+
+        let brightness = (r * 299 + g * 587 + b * 114) / 1000
+        if brightness < 45 {
+            return "Black"
+        } else if brightness > 220 {
+            return "White"
+        } else if abs(r - g) < 15 && abs(g - b) < 15 && abs(r - b) < 15 {
+            return brightness > 140 ? "Light Gray" : "Charcoal"
+        } else if b > r + 20 && b > g + 10 {
+            return brightness < 100 ? "Navy Blue" : "Blue"
+        } else if r > g + 25 && r > b + 25 {
+            return brightness < 110 ? "Burgundy" : "Red"
+        } else if g > r + 15 && g > b + 15 {
+            return brightness < 120 ? "Olive Green" : "Green"
+        } else if r > 160 && g > 140 && b < 110 {
+            return "Beige"
+        } else if r > 100 && g > 70 && b < 60 {
+            return "Brown"
+        }
+
+        return ""
+    }
 
     /// Analyzes an outfit photo using Apple AI FoundationModels (LanguageModelSession)
     /// and matches detected garments against the user's wardrobe items.
