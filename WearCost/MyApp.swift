@@ -7,6 +7,7 @@ struct MyApp: App {
         let schema = Schema([
             WardrobeItem.self,
             WearLog.self,
+            SavedOutfit.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

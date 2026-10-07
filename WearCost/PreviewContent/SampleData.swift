@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 struct SampleData {
     static func createSampleContainer() -> ModelContainer {
-        let schema = Schema([WardrobeItem.self, WearLog.self])
+        let schema = Schema([WardrobeItem.self, WearLog.self, SavedOutfit.self])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         do {
             let container = try ModelContainer(for: schema, configurations: [configuration])
@@ -33,6 +33,7 @@ struct SampleData {
 
         let calendar = Calendar.current
         let now = Date()
+        var insertedItems: [WardrobeItem] = []
 
         for itemInfo in itemsData {
             let purchaseDate = calendar.date(byAdding: .day, value: -itemInfo.daysAgo, to: now) ?? now
@@ -44,6 +45,7 @@ struct SampleData {
                 imageData: createPlaceholderImageData(symbolName: itemInfo.category.iconName, tintColor: itemInfo.category.color)
             )
             context.insert(item)
+            insertedItems.append(item)
 
             if itemInfo.wears > 0 {
                 let interval = max(1, itemInfo.daysAgo / itemInfo.wears)
@@ -53,6 +55,53 @@ struct SampleData {
                     context.insert(log)
                 }
             }
+        }
+
+        // Create initial Lookbook combos
+        if let oxford = insertedItems.first(where: { $0.name == "White Oxford Shirt" }),
+           let chinos = insertedItems.first(where: { $0.name == "Slim Chino Pants" }),
+           let boots = insertedItems.first(where: { $0.name == "Leather Chelsea Boots" }) {
+            let officeOutfit = SavedOutfit(
+                name: "Office Formal",
+                occasion: "Work",
+                createdAt: calendar.date(byAdding: .day, value: -30, to: now) ?? now,
+                lastWorn: calendar.date(byAdding: .day, value: -2, to: now),
+                notes: "Sharp, clean pairing for boardroom and weekly sprint demos.",
+                items: [oxford, chinos, boots]
+            )
+            context.insert(officeOutfit)
+        }
+
+        if let denim = insertedItems.first(where: { $0.name == "Raw Denim Jacket" }),
+           let oxford = insertedItems.first(where: { $0.name == "White Oxford Shirt" }),
+           let chinos = insertedItems.first(where: { $0.name == "Slim Chino Pants" }),
+           let sneakers = insertedItems.first(where: { $0.name == "Running Sneakers" }),
+           let tote = insertedItems.first(where: { $0.name == "Canvas Tote Bag" }) {
+            let casualOutfit = SavedOutfit(
+                name: "Weekend Casual",
+                occasion: "Casual",
+                createdAt: calendar.date(byAdding: .day, value: -20, to: now) ?? now,
+                lastWorn: calendar.date(byAdding: .day, value: -5, to: now),
+                notes: "Effortless weekend uniform for coffee runs and casual strolls.",
+                items: [denim, oxford, chinos, sneakers, tote]
+            )
+            context.insert(casualOutfit)
+        }
+
+        if let coat = insertedItems.first(where: { $0.name == "Wool Overcoat" }),
+           let cashmere = insertedItems.first(where: { $0.name == "Cashmere Knit Sweater" }),
+           let chinos = insertedItems.first(where: { $0.name == "Slim Chino Pants" }),
+           let boots = insertedItems.first(where: { $0.name == "Leather Chelsea Boots" }),
+           let beanie = insertedItems.first(where: { $0.name == "Merino Beanie" }) {
+            let chillyOutfit = SavedOutfit(
+                name: "Chilly Commute",
+                occasion: "Cold Weather",
+                createdAt: calendar.date(byAdding: .day, value: -15, to: now) ?? now,
+                lastWorn: calendar.date(byAdding: .day, value: -10, to: now),
+                notes: "Layered warmth maximizing high-investment outerwear ROI.",
+                items: [coat, cashmere, chinos, boots, beanie]
+            )
+            context.insert(chillyOutfit)
         }
 
         try? context.save()

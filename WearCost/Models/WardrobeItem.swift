@@ -97,6 +97,9 @@ final class WardrobeItem {
     @Relationship(deleteRule: .cascade, inverse: \WearLog.item)
     var wearLogs: [WearLog]? = []
 
+    @Relationship(deleteRule: .nullify)
+    var outfits: [SavedOutfit]? = []
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -111,6 +114,8 @@ final class WardrobeItem {
         self.purchasePrice = purchasePrice
         self.datePurchased = datePurchased
         self.imageData = imageData
+        self.wearLogs = []
+        self.outfits = []
     }
 
     // Dynamic Computed Properties
@@ -132,6 +137,32 @@ final class WardrobeItem {
     @MainActor
     var utilityTier: CPWUtilityTier {
         ThresholdManager.shared.tier(for: costPerWear)
+    }
+
+    // MARK: - CPW Optimization Metrics
+
+    /// Projected Cost-Per-Wear if worn one more time
+    var nextCostPerWear: Double {
+        if totalWears == 0 {
+            return purchasePrice / 2.0
+        }
+        let nextCount = totalWears + 1
+        return purchasePrice / Double(nextCount)
+    }
+
+    /// Dollar amount by which CPW drops upon the next wear
+    var cpwDropNextWear: Double {
+        if totalWears == 0 {
+            return purchasePrice - (purchasePrice / 2.0)
+        }
+        return max(0.0, costPerWear - nextCostPerWear)
+    }
+
+    /// Concise message for user: "Wear your Leather Jacket today to drop its CPW by $12.00"
+    @MainActor
+    func cpwDropMessage(with manager: CurrencyManager = .shared) -> String {
+        let dropFormatted = manager.format(cpwDropNextWear)
+        return "Wear your \(name) today to drop its CPW by \(dropFormatted)"
     }
 
     /// Calculates wears needed to reach a target CPW

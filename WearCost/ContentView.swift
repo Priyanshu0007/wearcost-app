@@ -12,17 +12,23 @@ struct ContentView: View {
                 }
                 .tag(0)
 
+            DailyStylistView()
+                .tabItem {
+                    Label("Stylist", systemImage: "sparkles")
+                }
+                .tag(1)
+
             AnalyticsView()
                 .tabItem {
                     Label("Analytics", systemImage: "chart.xyaxis.line")
                 }
-                .tag(1)
+                .tag(2)
 
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(2)
+                .tag(3)
         }
     }
 }

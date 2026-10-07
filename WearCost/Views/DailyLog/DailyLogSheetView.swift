@@ -7,6 +7,7 @@ struct DailyLogSheetView: View {
     @ObservedObject private var currencyManager = CurrencyManager.shared
 
     @Query(sort: \WardrobeItem.name) private var items: [WardrobeItem]
+    @Query(sort: \SavedOutfit.createdAt, order: .reverse) private var savedOutfits: [SavedOutfit]
 
     @State private var selectedItemIDs: Set<UUID> = []
     @State private var aiDetectedItemIDs: Set<UUID> = []
@@ -21,6 +22,11 @@ struct DailyLogSheetView: View {
             VStack(spacing: 0) {
                 // Category Filter Pills
                 categoryFilterRow
+
+                // Lookbook Quick Fill Row
+                if !savedOutfits.isEmpty {
+                    lookbookQuickFillRow
+                }
 
                 // AI Outfit Scan Banner
                 if outfitSummaryText != nil {
@@ -99,6 +105,55 @@ struct DailyLogSheetView: View {
         }
     }
 
+    // MARK: - Lookbook Quick Fill Row
+    private var lookbookQuickFillRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("LOAD FROM LOOKBOOK")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(savedOutfits) { outfit in
+                        Button {
+                            applyLookbook(outfit)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.accentColor)
+
+                                Text(outfit.name)
+                                    .font(.caption.weight(.medium))
+
+                                Text("(\(outfit.itemsCount))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func applyLookbook(_ outfit: SavedOutfit) {
+        guard let list = outfit.items, !list.isEmpty else { return }
+        let generator = UISelectionFeedbackGenerator()
+        generator.selectionChanged()
+
+        selectedItemIDs = Set(list.map(\.id))
+        outfitSummaryText = "Loaded '\(outfit.name)' Lookbook combo (\(list.count) pieces)."
+    }
+
     // MARK: - AI Scan Banners
 
     private var aiScanBanner: some View {
@@ -128,7 +183,7 @@ struct DailyLogSheetView: View {
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(.primary)
 
-                        Text("Apple AI")
+                        Text("Vision & LLM")
                             .font(.system(size: 9, weight: .heavy))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -137,17 +192,16 @@ struct DailyLogSheetView: View {
                             .clipShape(Capsule())
                     }
 
-                    Text("Snap today's photo to auto-detect and select worn pieces")
-                        .font(.caption2)
+                    Text("Snap or pick a mirror selfie to auto-select worn pieces.")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                Image(systemName: "camera.viewfinder")
+                    .font(.title3)
+                    .foregroundStyle(.purple)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -157,18 +211,18 @@ struct DailyLogSheetView: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(
                         LinearGradient(
-                            colors: [.purple.opacity(0.35), .blue.opacity(0.2)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                            colors: [.purple.opacity(0.4), .blue.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         ),
                         lineWidth: 1
                     )
             )
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 6)
     }
 
     private var aiSummaryBanner: some View {
@@ -176,27 +230,19 @@ struct DailyLogSheetView: View {
             ZStack {
                 Circle()
                     .fill(Color.purple.opacity(0.15))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 36, height: 36)
 
-                Image(systemName: "sparkles")
+                Image(systemName: "checkmark.sparkles.fill")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.purple)
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(outfitSummaryText ?? "AI Identified Outfit")
-                        .font(.subheadline.weight(.bold))
+                if let summary = outfitSummaryText {
+                    Text(summary)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(2)
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Text("Matched")
-                        .font(.system(size: 9, weight: .heavy))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.15))
-                        .foregroundStyle(.green)
-                        .clipShape(Capsule())
                 }
 
                 Text("\(aiDetectedItemIDs.count) pieces auto-selected by Apple AI")

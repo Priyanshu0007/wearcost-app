@@ -397,7 +397,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "WearCost$(APP_NAME_SUFFIX)";
+				INFOPLIST_KEY_CFBundleDisplayName = "WearCost Dev";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "WearCost uses your location to provide weather-aware outfit recommendations tailored to your local temperature and conditions.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -439,7 +440,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "WearCost$(APP_NAME_SUFFIX)";
+				INFOPLIST_KEY_CFBundleDisplayName = "WearCost Dev";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "WearCost uses your location to provide weather-aware outfit recommendations tailored to your local temperature and conditions.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -481,7 +483,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "WearCost$(APP_NAME_SUFFIX)";
+				INFOPLIST_KEY_CFBundleDisplayName = "WearCost Dev";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "WearCost uses your location to provide weather-aware outfit recommendations tailored to your local temperature and conditions.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -523,7 +526,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "WearCost$(APP_NAME_SUFFIX)";
+				INFOPLIST_KEY_CFBundleDisplayName = "WearCost Dev";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "WearCost uses your location to provide weather-aware outfit recommendations tailored to your local temperature and conditions.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
